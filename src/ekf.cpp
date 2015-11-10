@@ -40,11 +40,15 @@
 #include <sstream>
 #include <vector>
 
+#include <ros/ros.h>
+ 
 namespace RobotLocalization
 {
   Ekf::Ekf(std::vector<double>) :
     FilterBase()  // Must initialize filter base!
   {
+    predictFile.open("/home/dina/predict.txt");
+    updateFile.open("/home/dina/update.txt");
   }
 
   Ekf::~Ekf()
@@ -73,7 +77,7 @@ namespace RobotLocalization
         // Handle nan and inf values in measurements
         if (std::isnan(measurement.measurement_(i)))
         {
-          FB_DEBUG("Value at index " << i << " was nan. Excluding from update.\n");
+         FB_DEBUG("Value at index " << i << " was nan. Excluding from update.\n");
         }
         else if (std::isinf(measurement.measurement_(i)))
         {
@@ -136,7 +140,7 @@ namespace RobotLocalization
       // amount in that case.
       if (measurementCovarianceSubset(i, i) < 1e-9)
       {
-        FB_DEBUG("WARNING: measurement had very small error covariance for index " << updateIndices[i] <<
+       FB_DEBUG("WARNING: measurement had very small error covariance for index " << updateIndices[i] <<
                  ". Adding some noise to maintain filter stability.\n");
 
         measurementCovarianceSubset(i, i) = 1e-9;
@@ -162,29 +166,30 @@ namespace RobotLocalization
 
     innovationSubset = (measurementSubset - stateSubset);
 
-    // Wrap angles in the innovation
-    for (size_t i = 0; i < updateSize; ++i)
-    {
-      if (updateIndices[i] == StateMemberRoll  ||
-          updateIndices[i] == StateMemberPitch ||
-          updateIndices[i] == StateMemberYaw)
-      {
-        while (innovationSubset(i) < -PI)
-        {
-          innovationSubset(i) += TAU;
-        }
-
-        while (innovationSubset(i) > PI)
-        {
-          innovationSubset(i) -= TAU;
-        }
-      }
-    }
-    
     // (2) Check Mahalanobis distance between mapped measurement and state.
     if (checkMahalanobisThreshold(innovationSubset, hphrInv, measurement.mahalanobisThresh_))
     {
+      FB_DEBUG("entering mahalanobisThresh_!!!!!!");
       // (3) Apply the gain to the difference between the state and measurement: x = x + K(z - Hx)
+      // Wrap angles in the innovation
+      for (size_t i = 0; i < updateSize; ++i)
+      {
+        if (updateIndices[i] == StateMemberRoll ||
+            updateIndices[i] == StateMemberPitch ||
+            updateIndices[i] == StateMemberYaw)
+        {
+          while (innovationSubset(i) < -PI)
+          {
+            innovationSubset(i) += TAU;
+          }
+
+          while (innovationSubset(i) > PI)
+          {
+            innovationSubset(i) -= TAU;
+          }
+        }
+      }
+
       state_.noalias() += kalmanGainSubset * innovationSubset;
 
       // (4) Update the estimate error covariance using the Joseph form: (I - KH)P(I - KH)' + KRK'
@@ -197,7 +202,7 @@ namespace RobotLocalization
 
       // Handle wrapping of angles
       wrapStateAngles();
-
+      updateFile<<state_ <<std::endl;
       FB_DEBUG("Kalman gain subset is:\n" << kalmanGainSubset <<
                "\nInnovation is:\n" << innovationSubset <<
                "\nCorrected full state is:\n" << state_ <<
@@ -274,75 +279,75 @@ namespace RobotLocalization
 
     yCoeff = cy * sp * cr + sy * sr;
     zCoeff = -cy * sp * sr + sy * cr;
-    double dFx_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
-                    (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFR_dR = 1 + (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF0dr = (yCoeff * yVel + zCoeff * zVel) * delta +
+                   (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF6dr = 1 + (yCoeff * rollVel + zCoeff * yawVel) * delta;
 
     xCoeff = -cy * sp;
     yCoeff = cy * cp * sr;
     zCoeff = cy * cp * cr;
-    double dFx_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
-                    (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFR_dP = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF0dp = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+                   (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF6dp = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -sy * cp;
     yCoeff = -sy * sp * sr - cy * cr;
     zCoeff = -sy * sp * cr + cy * sr;
-    double dFx_dY = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
-                    (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFR_dY = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF0dy = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+                   (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF6dy = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     yCoeff = sy * sp * cr - cy * sr;
     zCoeff = -sy * sp * sr - cy * cr;
-    double dFy_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
-                    (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFP_dR = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF1dr = (yCoeff * yVel + zCoeff * zVel) * delta +
+                   (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF7dr = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -sy * sp;
     yCoeff = sy * cp * sr;
     zCoeff = sy * cp * cr;
-    double dFy_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
-                    (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFP_dP = 1 + (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF1dp = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+                   (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF7dp = 1 + (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = cy * cp;
     yCoeff = cy * sp * sr - sy * cr;
     zCoeff = cy * sp * cr + sy * sr;
-    double dFy_dY = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
-                    (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFP_dY = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF1dy = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+                   (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF7dy = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     yCoeff = cp * cr;
     zCoeff = -cp * sr;
-    double dFz_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
-                    (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFY_dR = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF2dr = (yCoeff * yVel + zCoeff * zVel) * delta +
+                   (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF8dr = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -cp;
     yCoeff = -sp * sr;
     zCoeff = -sp * cr;
-    double dFz_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
-                    (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFY_dP = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dF2dp = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+                   (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
+    double dF8dp = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     // Much of the transfer function Jacobian is identical to the transfer function
     transferFunctionJacobian_ = transferFunction_;
-    transferFunctionJacobian_(StateMemberX, StateMemberRoll) = dFx_dR;
-    transferFunctionJacobian_(StateMemberX, StateMemberPitch) = dFx_dP;
-    transferFunctionJacobian_(StateMemberX, StateMemberYaw) = dFx_dY;
-    transferFunctionJacobian_(StateMemberY, StateMemberRoll) = dFy_dR;
-    transferFunctionJacobian_(StateMemberY, StateMemberPitch) = dFy_dP;
-    transferFunctionJacobian_(StateMemberY, StateMemberYaw) = dFy_dY;
-    transferFunctionJacobian_(StateMemberZ, StateMemberRoll) = dFz_dR;
-    transferFunctionJacobian_(StateMemberZ, StateMemberPitch) = dFz_dP;
-    transferFunctionJacobian_(StateMemberRoll, StateMemberRoll) = dFR_dR;
-    transferFunctionJacobian_(StateMemberRoll, StateMemberPitch) = dFR_dP;
-    transferFunctionJacobian_(StateMemberRoll, StateMemberYaw) = dFR_dY;
-    transferFunctionJacobian_(StateMemberPitch, StateMemberRoll) = dFP_dR;
-    transferFunctionJacobian_(StateMemberPitch, StateMemberPitch) = dFP_dP;
-    transferFunctionJacobian_(StateMemberPitch, StateMemberYaw) = dFP_dY;
-    transferFunctionJacobian_(StateMemberYaw, StateMemberRoll) = dFY_dR;
-    transferFunctionJacobian_(StateMemberYaw, StateMemberPitch) = dFY_dP;
+    transferFunctionJacobian_(StateMemberX, StateMemberRoll) = dF0dr;
+    transferFunctionJacobian_(StateMemberX, StateMemberPitch) = dF0dp;
+    transferFunctionJacobian_(StateMemberX, StateMemberYaw) = dF0dy;
+    transferFunctionJacobian_(StateMemberY, StateMemberRoll) = dF1dr;
+    transferFunctionJacobian_(StateMemberY, StateMemberPitch) = dF1dp;
+    transferFunctionJacobian_(StateMemberY, StateMemberYaw) = dF1dy;
+    transferFunctionJacobian_(StateMemberZ, StateMemberRoll) = dF2dr;
+    transferFunctionJacobian_(StateMemberZ, StateMemberPitch) = dF2dp;
+    transferFunctionJacobian_(StateMemberRoll, StateMemberRoll) = dF6dr;
+    transferFunctionJacobian_(StateMemberRoll, StateMemberPitch) = dF6dp;
+    transferFunctionJacobian_(StateMemberRoll, StateMemberYaw) = dF6dy;
+    transferFunctionJacobian_(StateMemberPitch, StateMemberRoll) = dF7dr;
+    transferFunctionJacobian_(StateMemberPitch, StateMemberPitch) = dF7dp;
+    transferFunctionJacobian_(StateMemberPitch, StateMemberYaw) = dF7dy;
+    transferFunctionJacobian_(StateMemberYaw, StateMemberRoll) = dF8dr;
+    transferFunctionJacobian_(StateMemberYaw, StateMemberPitch) = dF8dp;
 
     FB_DEBUG("Transfer function is:\n" << transferFunction_ <<
              "\nTransfer function Jacobian is:\n" << transferFunctionJacobian_ <<
@@ -366,6 +371,9 @@ namespace RobotLocalization
 
     FB_DEBUG("Predicted estimate error covariance is:\n" << estimateErrorCovariance_ <<
              "\n\n--------------------- /Ekf::predict ----------------------\n");
+    predictFile<<"(1): "<<state_ <<std::endl;
+    predictFile<<"(2): "<<transferFunction_<<std::endl;
+    predictFile<<"(3): "<<delta<<std::endl;
   }
 
 }  // namespace RobotLocalization

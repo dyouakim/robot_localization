@@ -52,6 +52,7 @@ namespace RobotLocalization
 //!
 class Ekf: public FilterBase
 {
+   
   public:
     //! @brief Constructor for the Ekf class
     //!
@@ -79,6 +80,8 @@ class Ekf: public FilterBase
     //! @param[in] delta - The time step over which to predict.
     //!
     void predict(const double delta);
+
+     std::ofstream predictFile,updateFile;
 };
 
 }  // namespace RobotLocalization

@@ -37,7 +37,7 @@
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "ekf_navigation_node");
-
+   ROS_INFO_STREAM("in ekf_localization_node");
   RobotLocalization::RosEkf ekf;
 
   ekf.run();

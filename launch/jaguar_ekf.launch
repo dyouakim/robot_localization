@@ -14,19 +14,19 @@
            the filter will not begin computation until it receives at least one message from
            one of the inputs. It will then run continuously at the frequency specified here,
            regardless of whether it receives more measurements. Defaults to 30 if unspecified. -->
-      <param name="frequency" value="30"/>
+      <param name="frequency" value="16"/>
 
       <!-- The period, in seconds, after which we consider a sensor to have timed out. In this event, we
            carry out a predict cycle on the EKF without correcting it. This parameter can be thought of
            as the minimum frequency with which the filter will generate new output. Defaults to 1 / frequency
            if not specified. -->
-      <param name="sensor_timeout" value="0.1"/>
+      <param name="sensor_timeout" value="1"/>
 
       <!-- If this is set to true, no 3D information will be used in your state estimate. Use this if you
            are operating in a planar environment and want to ignore the effect of small variations in the
            ground plane that might otherwise be detected by, for example, an IMU. Defaults to false if
            unspecified. -->
-      <param name="two_d_mode" value="false"/>
+      <param name="two_d_mode" value="true"/>
 
       <!-- REP-105 (http://www.ros.org/reps/rep-0105.html) specifies three principal coordinate frames: map,
            odom, and base_link. base_link is the coordinate frame that is affixed to the robot. The robot's
@@ -51,7 +51,7 @@
       <!-- Defaults to "odom" if unspecified -->
       <param name="odom_frame" value="odom"/>
       <!-- Defaults to "base_link" if unspecified -->
-      <param name="base_link_frame" value="base_link"/>
+      <param name="base_link_frame" value="camera_link"/>
       <!-- Defaults to the value of "odom_frame" if unspecified -->
       <param name="world_frame" value="odom"/>
 
@@ -64,11 +64,8 @@
            TwistStamped, Imu). To add a new one, simply append the next number in the sequence to its base name,
            e.g., odom0, odom1, twist0, twist1, imu0, imu1, imu2, etc. The value should be the topic name. These
            parameters obviously have no default values, and must be specified. -->
-      <param name="odom0" value="/front_motor_odom"/>
-      <param name="odom1" value="example/another_odom"/>
-      <param name="pose0" value="example/pose"/>
-      <param name="twist0" value="example/twist"/>
-      <param name="imu0" value="example/imu/data"/>
+      <param name="odom0" value="/rear_motor_odom"/>
+      <param name="imu0" value="/imu"/>
 
       <!-- Each sensor reading updates some or all of the filter's state. These options give you greater control over
            which values from each measurement are fed to the filter. For example, if you have an odometry message as input,
@@ -83,28 +80,10 @@
                                       false, false, true,
                                       false, false, false]</rosparam>
 
-      <rosparam param="odom1_config">[false, false, false,
-                                      false, false, false,
-                                      true,  false, false,
-                                      false, false, false,
-                                      false, false, false]</rosparam>
-
-      <rosparam param="pose0_config">[true,  true,  false,
-                                      false, false, false,
-                                      false, false, false,
-                                      false, false, false,
-                                      false, false, false]</rosparam>
-
-      <rosparam param="twist0_config">[false, false, false,
-                                       false, false, false,
-                                       true,  true,  true,
-                                       true,  true,  true,
-                                       false, false, false]</rosparam>
-
       <rosparam param="imu0_config">[false, false, false,
-                                     true,  true,  true,
+                                     false,  false,  true,
                                      false, false, false,
-                                     true,  true,  true,
+                                     false,  false,  true,
                                      true,  true,  true]</rosparam>
 
       <!-- The best practice for including new sensors in robot_localization's state estimation nodes is to pass in velocity
@@ -123,18 +102,14 @@
            integration of velocities leads to slowly increasing error in the absolute (pose) variable. For position variables,
            this is acceptable. For orientation variables, it can lead to trouble. Users should make sure that all orientation
            variables have at least one source of absolute measurement. -->
-      <param name="odom0_differential" value="true"/>
-      <param name="odom1_differential" value="false"/>
-      <param name="pose0_differential" value="true"/>
+      <param name="odom0_differential" value="false"/>
       <param name="imu0_differential" value="false"/>
 
       <!-- When the node starts, if this parameter is true, then the first measurement is treated as a "zero point" for all
            future measurements. While you can achieve the same effect with the differential paremeter, the key difference is
            that the relative parameter doesn't cause the measurement to be converted to a velocity before integrating it. If
            you simply want your measurements to start at 0 for a given sensor, set this to true. -->
-      <param name="odom0_relative" value="false"/>
-      <param name="odom1_relative" value="true"/>
-      <param name="pose0_relative" value="false"/>
+      <param name="odom0_relative" value="true"/>
       <param name="imu0_relative" value="true"/>
 
       <!-- If we're including accelerations in our state estimate, then we'll probably want to remove any acceleration that
@@ -153,28 +128,23 @@
 
       <!-- By default, the subscription queue size for each message type is 1. If you wish to increase that so as not
            miss any messages (even if your frequency is set to a relatively small value), increase these. -->
-      <param name="odom0_queue_size" value="2"/>
-      <param name="odom1_queue_size" value="1"/>
-      <param name="pose0_queue_size" value="10"/>
-      <param name="twist0_queue_size" value="3"/>
-      <param name="imu0_queue_size" value="10"/>
+      <param name="odom0_queue_size" value="100"/>
+      <param name="imu0_queue_size" value="100"/>
 
       <!-- If your data is subject to outliers, use these threshold settings, expressed as Mahalanobis distances, to control
            how far away from the current vehicle state a sensor measurement is permitted to be. Each defaults to
            numeric_limits<double>::max() if unspecified. -->
       <param name="odom0_pose_rejection_threshold" value="5"/>
       <param name="odom0_twist_rejection_threshold" value="1"/>
-      <param name="pose0_rejection_threshold" value="2"/>
-      <param name="twist0_rejection_threshold" value="1.2"/>
-      <param name="imu0_pose_rejection_threshold" value="0.3"/>
-      <param name="imu0_twist_rejection_threshold" value="0.1"/>
+      <param name="imu0_pose_rejection_threshold" value="5"/>
+      <!--param name="imu0_twist_rejection_threshold" value="1"/-->
       <param name="imu0_linear_acceleration_rejection_threshold" value="0.1"/>
 
       <!-- Debug settings. Not for the faint of heart. Outputs a ludicrous amount of information to the file
            specified by debug_out_file. I hope you like matrices! Defaults to false if unspecified. -->
-      <param name="debug"           value="false"/>
+      <param name="debug"           value="true"/>
       <!-- Defaults to "robot_localization_debug.txt" if unspecified. -->
-      <param name="debug_out_file"  value="debug_ekf_localization.txt"/>
+      <param name="debug_out_file"  value="/home/dina/debug_ekf_localization.txt"/>
 
       <!-- The process noise covariance matrix can be difficult to tune, and can vary for each application, so it
            is exposed as a configuration parameter. The values are ordered as x, y, z, roll, pitch, yaw, vx, vy, vz,

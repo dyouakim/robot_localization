@@ -43,7 +43,7 @@
 #include <utility>
 #include <vector>
 #include <limits>
-
+ 
 namespace RobotLocalization
 {
   template<typename T>
@@ -390,9 +390,11 @@ namespace RobotLocalization
     {
       while (!measurementQueue_.empty())
       {
+        ROS_INFO_STREAM("Filter: Process measurement state");
         Measurement measurement = measurementQueue_.top();
         measurementQueue_.pop();
-
+        debugStream_<<"PROCESS MEASURE NUM: "<<measurementQueue_.size()<<std::endl;
+        debugStream_<<"Current measure is: "<<measurement.measurement_<<std::endl;
         // This will call predict and, if necessary, correct
         filter_.processMeasurement(measurement);
       }
@@ -404,6 +406,7 @@ namespace RobotLocalization
       // In the event that we don't get any measurements for a long time,
       // we still need to continue to estimate our state. Therefore, we
       // should project the state forward here.
+      ROS_INFO_STREAM("Filter: Initial state");
       double lastUpdateDelta = currentTime - filter_.getLastUpdateTime();
 
       // If we get a large delta, then continuously predict until
@@ -466,7 +469,8 @@ namespace RobotLocalization
 
       try
       {
-        nhLocal_.param("debug_out_file", debugOutFile, std::string("robot_localization_debug.txt"));
+        nhLocal_.param("debug_out_file", debugOutFile, std::string("/home/dina/robot_localization_debug.txt"));
+        ROS_INFO_STREAM("File name: "<<debugOutFile.c_str());
         debugStream_.open(debugOutFile.c_str());
 
         // Make sure we succeeded
@@ -1076,6 +1080,7 @@ namespace RobotLocalization
                           "but all its update variables are false");
         }
 
+        ROS_INFO_STREAM("imu pose "<<poseUpdateSum);
         if (poseUpdateSum > 0)
         {
           poseMFPtr poseFilPtr(
@@ -1185,7 +1190,8 @@ namespace RobotLocalization
 
     /* Warn users about:
     *    1. Multiple non-differential input sources
-    *    2. No absolute *or* velocity measurements for pose variables
+    *    2. No absolute measurements of orientations variables
+    *    3. No absolute *or* relative measurements of position variables
     */
     if (printDiagnostics_)
     {
@@ -1206,21 +1212,41 @@ namespace RobotLocalization
         }
         else if (absPoseVarCounts[static_cast<StateMembers>(stateVar)] == 0)
         {
+          if (twoDMode_ == false)
+          {
+            if (static_cast<StateMembers>(stateVar) == StateMemberRoll ||
+               static_cast<StateMembers>(stateVar) == StateMemberPitch)
+            {
+              std::stringstream stream;
+              stream << "two_d_mode is false, and " << stateVariableNames_[stateVar] << " is not being measured. "
+                        "This will result in unbounded error growth and erratic filter behavior.";
+
+              addDiagnostic(diagnostic_msgs::DiagnosticStatus::ERROR,
+                            stateVariableNames_[stateVar] + "_configuration",
+                            stream.str(),
+                            true);
+            }
+          }
+
+          if (static_cast<StateMembers>(stateVar) == StateMemberYaw)
+          {
+            std::stringstream stream;
+            stream << stateVariableNames_[stateVar] << " is not being measured. This will result "
+                      "in unbounded error growth and erratic filter behavior.";
+
+            addDiagnostic(diagnostic_msgs::DiagnosticStatus::ERROR,
+                          stateVariableNames_[stateVar] + "_configuration",
+                          stream.str(),
+                          true);
+          }
+
           if ((static_cast<StateMembers>(stateVar) == StateMemberX &&
-               twistVarCounts[static_cast<StateMembers>(StateMemberVx)] == 0) ||
-              (static_cast<StateMembers>(stateVar) == StateMemberY &&
-               twistVarCounts[static_cast<StateMembers>(StateMemberVy)] == 0) ||
-              (static_cast<StateMembers>(stateVar) == StateMemberZ &&
-               twistVarCounts[static_cast<StateMembers>(StateMemberVz)] == 0 &&
-               twoDMode_ == false) ||
-              (static_cast<StateMembers>(stateVar) == StateMemberRoll &&
-               twistVarCounts[static_cast<StateMembers>(StateMemberVroll)] == 0 &&
-               twoDMode_ == false) ||
-              (static_cast<StateMembers>(stateVar) == StateMemberPitch &&
-               twistVarCounts[static_cast<StateMembers>(StateMemberVpitch)] == 0 &&
-               twoDMode_ == false) ||
-              (static_cast<StateMembers>(stateVar) == StateMemberYaw &&
-               twistVarCounts[static_cast<StateMembers>(StateMemberVyaw)] == 0))
+              twistVarCounts[static_cast<StateMembers>(StateMemberVx)] == 0) ||
+             (static_cast<StateMembers>(stateVar) == StateMemberY &&
+              twistVarCounts[static_cast<StateMembers>(StateMemberVy)] == 0) ||
+             (static_cast<StateMembers>(stateVar) == StateMemberZ &&
+              twistVarCounts[static_cast<StateMembers>(StateMemberVz)] == 0 &&
+              twoDMode_ == false))
           {
             std::stringstream stream;
             stream << "Neither " << stateVariableNames_[stateVar] << " nor its "
@@ -1363,6 +1389,7 @@ namespace RobotLocalization
     }
   }
 
+
   template<typename T>
   void RosFilter<T>::odometryCallback(const nav_msgs::Odometry::ConstPtr &msg,
                                    const std::string &topicName)
@@ -1461,6 +1488,7 @@ namespace RobotLocalization
         {
           // Store the measurement. Add a "pose" suffix so we know what kind of measurement
           // we're dealing with when we debug the core filter logic.
+          RF_DEBUG("betzeen prepare and enqueue: "<<measurement<<"\n");
           enqueueMeasurement(topicName,
                              measurement,
                              measurementCovariance,
@@ -1528,7 +1556,12 @@ namespace RobotLocalization
     mapOdomTransMsg.transform = tf2::toMsg(tf2::Transform::getIdentity());
 
     // Publisher
-    ros::Publisher positionPub = nh_.advertise<nav_msgs::Odometry>("odometry/filtered", 20);
+    ros::Publisher positionPub = nh_.advertise<nav_msgs::Odometry>("odometry/filtered", 100);
+
+    vis_pub = nh_.advertise<visualization_msgs::Marker>("filtered_odom_marker", 100);
+
+data.open("/home/dina/filtered_ekf.txt");
+	counter=0;
     tf2_ros::TransformBroadcaster worldTransformBroadcaster;
 
     ros::Rate loop_rate(frequency_);
@@ -1605,7 +1638,33 @@ namespace RobotLocalization
 
         // Fire off the position and the transform
         positionPub.publish(filteredPosition);
-
+	
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = "odom";
+  marker.header.stamp = ros::Time();
+  marker.ns = "filtered";
+  marker.id = counter;
+  counter++;
+  marker.type = visualization_msgs::Marker::ARROW;
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.pose.position.x = filteredPosition.pose.pose.position.x;
+  marker.pose.position.y = filteredPosition.pose.pose.position.y;
+  marker.pose.position.z = filteredPosition.pose.pose.position.z;
+  marker.pose.orientation.x = filteredPosition.pose.pose.orientation.x;
+  marker.pose.orientation.y = filteredPosition.pose.pose.orientation.y;
+  marker.pose.orientation.z =filteredPosition.pose.pose.orientation.z;
+  marker.pose.orientation.w = filteredPosition.pose.pose.orientation.w;
+  marker.scale.x = 0.2;
+  marker.scale.y = 0.01;
+  marker.scale.z = 0.01;
+  marker.color.a = 1.0; // Don't forget to set the alpha!
+  marker.color.r = 1.0;
+  marker.color.g = 0.0;
+  marker.color.b = 0.0;
+  
+  vis_pub.publish( marker );
+data<<filteredPosition.pose.pose.position.x<<","<<filteredPosition.pose.pose.position.y<<","<<tf::getYaw(filteredPosition.pose.pose.orientation)<<
+","<<filteredPosition.twist.twist.linear.x<<","<<filteredPosition.twist.twist.linear.y<<","<<filteredPosition.twist.twist.angular.z<<std::endl;
         if (printDiagnostics_)
         {
           freqDiag.tick();
@@ -1677,7 +1736,7 @@ namespace RobotLocalization
     // Prepare the pose data (really just using this to transform it into the target frame).
     // Twist data is going to get zeroed out.
     preparePose(msg, topicName, worldFrameId_, false, false, false, updateVector, measurement, measurementCovariance);
-
+    RF_DEBUG("Prepared meadurement: "<<measurement<<"\n");
     // For the state
     filter_.setState(measurement);
     filter_.setEstimateErrorCovariance(measurementCovariance);
@@ -2123,7 +2182,7 @@ namespace RobotLocalization
       accTmp = targetFrameTrans.getBasis() * accTmp;
       maskAcc = targetFrameTrans.getBasis() * maskAcc;
 
-      // Now use the mask values to determine which update vector values should be true
+      // Now use the mask values to determinme which update vector values should true
       updateVector[StateMemberAx] = static_cast<int>(
         maskAcc.getRow(StateMemberAx - POSITION_A_OFFSET).length() >= 1e-6);
       updateVector[StateMemberAy] = static_cast<int>(
@@ -2290,6 +2349,7 @@ namespace RobotLocalization
       tf2::Matrix3x3 maskOrientation(updateVector[StateMemberRoll], 0, 0,
                                      0, updateVector[StateMemberPitch], 0,
                                      0, 0, updateVector[StateMemberYaw]);
+      
 
       if (imuData)
       {
@@ -2328,6 +2388,9 @@ namespace RobotLocalization
         maskOrientation.getRow(StateMemberPitch - ORIENTATION_OFFSET).length() >= 1e-6);
       updateVector[StateMemberYaw] = static_cast<int>(
         maskOrientation.getRow(StateMemberYaw - ORIENTATION_OFFSET).length() >= 1e-6);
+      
+      RF_DEBUG("OFFSET: "<<POSITION_OFFSET<< "\n");
+      RF_DEBUG("UPDATEEE vector: "<<updateVector<< "\n");
 
       // 5a. We'll need to rotate the covariance as well. Create a container and copy over the
       // covariance data

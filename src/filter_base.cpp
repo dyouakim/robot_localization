@@ -38,6 +38,8 @@
 #include <limits>
 #include <iostream>
 
+#include <ros/ros.h>
+ 
 namespace RobotLocalization
 {
   FilterBase::FilterBase() :
@@ -157,7 +159,7 @@ namespace RobotLocalization
 
   void FilterBase::processMeasurement(const Measurement &measurement)
   {
-    FB_DEBUG("------ FilterBase::processMeasurement (" << measurement.topicName_ << ") ------\n");
+    FB_DEBUG("------ FilterBase::processMeasurementpr (" << measurement.topicName_ << ") ------\n");
 
     double delta = 0.0;
 

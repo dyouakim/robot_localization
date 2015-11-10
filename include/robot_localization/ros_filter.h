@@ -52,9 +52,9 @@
 #include <diagnostic_updater/diagnostic_updater.h>
 #include <diagnostic_updater/publisher.h>
 #include <diagnostic_msgs/DiagnosticStatus.h>
-
+#include <visualization_msgs/Marker.h>
 #include <XmlRpcException.h>
-
+#include <tf_conversions/tf_eigen.h>
 #include <Eigen/Dense>
 
 #include <fstream>
@@ -549,6 +549,10 @@ template<class T> class RosFilter
     //! @brief tf frame name that is the parent frame of the transform that this node will calculate and broadcast.
     //!
     std::string worldFrameId_;
+
+    int counter;
+std::ofstream data;
+ros::Publisher vis_pub;
 };
 
 }  // namespace RobotLocalization
