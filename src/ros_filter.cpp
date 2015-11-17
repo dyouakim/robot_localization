@@ -469,7 +469,7 @@ namespace RobotLocalization
 
       try
       {
-        nhLocal_.param("debug_out_file", debugOutFile, std::string("/home/dina/robot_localization_debug.txt"));
+        nhLocal_.param("debug_out_file", debugOutFile, std::string("../robot_localization_debug.txt"));
         ROS_INFO_STREAM("File name: "<<debugOutFile.c_str());
         debugStream_.open(debugOutFile.c_str());
 
@@ -1560,7 +1560,7 @@ namespace RobotLocalization
 
     vis_pub = nh_.advertise<visualization_msgs::Marker>("filtered_odom_marker", 100);
 
-data.open("/home/dina/filtered_ekf.txt");
+data.open("../filtered_ekf.txt");
 	counter=0;
     tf2_ros::TransformBroadcaster worldTransformBroadcaster;
 

@@ -144,7 +144,7 @@
            specified by debug_out_file. I hope you like matrices! Defaults to false if unspecified. -->
       <param name="debug"           value="true"/>
       <!-- Defaults to "robot_localization_debug.txt" if unspecified. -->
-      <param name="debug_out_file"  value="/home/dina/debug_ekf_localization.txt"/>
+      <param name="debug_out_file"  value="../debug_ekf_localization.txt"/>
 
       <!-- The process noise covariance matrix can be difficult to tune, and can vary for each application, so it
            is exposed as a configuration parameter. The values are ordered as x, y, z, roll, pitch, yaw, vx, vy, vz,

@@ -47,8 +47,8 @@ namespace RobotLocalization
   Ekf::Ekf(std::vector<double>) :
     FilterBase()  // Must initialize filter base!
   {
-    predictFile.open("/home/dina/predict.txt");
-    updateFile.open("/home/dina/update.txt");
+    predictFile.open("../predict.txt");
+    updateFile.open("../update.txt");
   }
 
   Ekf::~Ekf()
