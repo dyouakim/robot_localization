@@ -1641,7 +1641,7 @@ data.open("../filtered_ekf.txt");
 	
   visualization_msgs::Marker marker;
   marker.header.frame_id = "odom";
-  marker.header.stamp = ros::Time();
+  marker.header.stamp = ros::Time::now();
   marker.ns = "filtered";
   marker.id = counter;
   counter++;
@@ -1664,7 +1664,7 @@ data.open("../filtered_ekf.txt");
   
   vis_pub.publish( marker );
 data<<filteredPosition.pose.pose.position.x<<","<<filteredPosition.pose.pose.position.y<<","<<tf::getYaw(filteredPosition.pose.pose.orientation)<<
-","<<filteredPosition.twist.twist.linear.x<<","<<filteredPosition.twist.twist.linear.y<<","<<filteredPosition.twist.twist.angular.z<<std::endl;
+","<<filteredPosition.twist.twist.linear.x<<","<<filteredPosition.twist.twist.linear.y<<","<<filteredPosition.twist.twist.angular.z<<","<<marker.header.stamp<<std::endl;
         if (printDiagnostics_)
         {
           freqDiag.tick();
